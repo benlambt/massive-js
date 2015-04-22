@@ -15,7 +15,7 @@ var self;
 var Massive = function(args){
 
   this.scriptsDir = args.scripts || process.cwd() + "/db";
-  
+
   var runner = new Runner(args.connectionString);
   _.extend(this,runner);
 
@@ -30,7 +30,7 @@ Massive.prototype.run = function(){
   this.query(args);
 }
 
-Massive.prototype.loadQueries = function() { 
+Massive.prototype.loadQueries = function() {
   walkSqlFiles(this,this.scriptsDir);
 };
 
@@ -57,9 +57,54 @@ Massive.prototype.loadTables = function(next){
   });
 }
 
-Massive.prototype.saveDoc = function(collection, doc, next){
+Massive.prototype.insertDoc = function(collection, doc, next) {
+  this.saveDoc('insert', collection, doc, next);
+}
+
+Massive.prototype.updateDoc = function(collection, doc, next) {
+  this.saveDoc('update', collection, doc, next);
+}
+
+Massive.prototype.saveDoc = function(operation, collection, doc, next){
   var self = this;
 
+  collection = this.readCollection(collection);
+
+  if(collection.table) {
+    collection.table.saveDoc(operation, doc, next);
+  } else {
+    this.createDocTable(collection, function() {
+      // recurse
+      self.saveDoc(operation, collection.path, doc, next);
+    });
+  }
+};
+
+Massive.prototype.createDocTable = function (collection, next) {
+  if (_.isString(collection)) {
+    collection = this.readCollection(collection);
+  }
+
+  var _table = new Table({
+    schema : collection.schemaName,
+    pk : "id",
+    name : collection.tableName,
+    db : self
+  });
+
+  // Create the table in the back end:
+  var sql = this.documentTableSql(collection.path);
+  this.query(sql, function(err, res) {
+    if (err) {
+      next(err, null);
+    } else {
+      MapTableToNamespace(_table);
+      next();
+    }
+  });
+}
+
+Massive.prototype.readCollection = function (collection) {
   // default is public. Table constructor knows what to do if 'public' is used as the schema name:
   var schemaName = "public";
   var tableName = collection;
@@ -72,40 +117,23 @@ Massive.prototype.saveDoc = function(collection, doc, next){
     schemaName = splits[0];
     tableName = splits[1];
     potentialTable = self[schemaName][tableName];
-  } else { 
+  } else {
     potentialTable = self[tableName];
   }
-
-  if(potentialTable) { 
-    potentialTable.saveDoc(doc, next);
-  } else { 
-    var _table = new Table({
-    schema : schemaName,
-     pk : "id",
-     name : tableName,
-     db : self
-    });
-
-    // Create the table in the back end:
-    var sql = this.documentTableSql(collection);
-    this.query(sql, function(err,res){
-      if(err){
-        next(err,null);
-      } else {
-        MapTableToNamespace(_table);
-        // recurse
-        self.saveDoc(collection,doc,next);       
-      }
-    });
-  }
+  return {
+    schemaName: schemaName,
+    tableName: tableName,
+    table: potentialTable,
+    path: collection
+  };
 };
 
-var MapTableToNamespace = function(table) { 
+var MapTableToNamespace = function(table) {
   var db = table.db;
-  if(table.schema !== "public") { 
+  if(table.schema !== "public") {
     schemaName = table.schema;
     // is this schema already attached?
-    if(!db[schemaName]) { 
+    if(!db[schemaName]) {
       // if not, then bolt it on:
       db[schemaName] = {};
       // push it into the tables collection as a namespace object:
@@ -113,11 +141,11 @@ var MapTableToNamespace = function(table) {
     }
     // attach the table to the schema:
     db[schemaName][table.name] = table;
-  } else { 
+  } else {
     //it's public - just pin table to the root to namespace
     db[table.name] = table;
     db.tables.push(table);
-  }  
+  }
 }
 
 Massive.prototype.documentTableSql = function(tableName){
@@ -137,7 +165,7 @@ var walkSqlFiles = function(rootObject, rootDir){
   } catch (ex) {
      return;
   }
-  
+
   //loop the directories found
   _.each(dirs, function(item){
 
@@ -219,8 +247,8 @@ Massive.prototype.loadFunctions = function(next){
 };
 
 //it's less congested now...
-var assignScriptAsFunction = function (rootObject, propertyName) { 
-   rootObject[propertyName] = function(args, next) { 
+var assignScriptAsFunction = function (rootObject, propertyName) {
+   rootObject[propertyName] = function(args, next) {
     args || (args = {});
     //if args is a function, it's our callback
     if(_.isFunction(args)){
@@ -228,14 +256,14 @@ var assignScriptAsFunction = function (rootObject, propertyName) {
       //set args to an empty array
       args = [];
     }
-    //JA - use closure to assign stuff from properties before they are invented 
+    //JA - use closure to assign stuff from properties before they are invented
     //(sorta, I think...):
     var sql = rootObject[propertyName].sql;
     var db = rootObject[propertyName].db;
     var params = _.isArray(args) ? args : [args];
 
     //execute the query on invocation
-    db.query(sql,params,{}, next);  
+    db.query(sql,params,{}, next);
   }
   return rootObject[propertyName];
 }
@@ -243,7 +271,7 @@ var assignScriptAsFunction = function (rootObject, propertyName) {
 //connects Massive to the DB
 exports.connect = function(args, next){
   assert((args.connectionString || args.db), "Need a connectionString or db (name of database on localhost) at the very least.");
-  
+
   //override if there's a db name passed in
   if(args.db){
     args.connectionString = "postgres://localhost/"+args.db;
@@ -263,14 +291,20 @@ exports.connect = function(args, next){
   });
 };
 
-exports.loadSync = function(args) { 
+exports.loadSync = function(args) {
   var done = false;
-  this.connect(args, function (err, res) { 
+  this.connect(args, function (err, res) {
     result = res;
     done = true;
   });
-  while(!done) { 
+  while(!done) {
     deasync.runLoopOnce();
   }
   return result;
 }
+
+exports.config = function(opts) {
+  Table.config(opts);
+};
+
+exports.Table = Table;
