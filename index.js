@@ -157,6 +157,12 @@ Massive.prototype.documentTableSql = function(tableName){
   return sql;
 };
 
+Massive.prototype.loadSprocs = function(next) {
+  var sprocFile = __dirname + "/lib/scripts/json_sprocs.sql";
+  var sql = fs.readFileSync(sprocFile, {encoding: 'utf-8'});
+  this.query(sql, next);
+};
+
 //A recursive directory walker that would love to be refactored
 var walkSqlFiles = function(rootObject, rootDir){
   var dirs;
@@ -284,9 +290,12 @@ exports.connect = function(args, next){
     self = db;
     massive.loadFunctions(function(err,db){
       assert(!err, err);
-      //synchronous
-      db.loadQueries();
-      next(null,db);
+      db.loadSprocs(function(err) {
+        assert(!err, err);
+        //synchronous
+        db.loadQueries();
+        next(null,db);
+      });
     });
   });
 };
