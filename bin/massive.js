@@ -23,7 +23,7 @@ if(program.database){
 }
 
 if(connectionString){
-  massive.connect({connectionString : connectionString}, function(err,db){ 
+  massive.connect({connectionString : connectionString}, function(err,db){
     var context = repl.start({
       prompt: "db > ",
     }).context;
