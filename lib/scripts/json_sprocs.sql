@@ -4,9 +4,11 @@ CREATE or REPLACE FUNCTION json_set(collec TEXT, id TEXT, path TEXT, value JSON)
 RETURNS JSON
 AS $$
 
-  sql = plv8.prepare "select body::json from #{collec} where id = $1", ['text']
+  sql = plv8.prepare "select body::json from #{collec} where id = $1 for update
+    ", ['text']
   rows = sql.execute [id]
   data = rows[0].body
+  sql.free()
 
   parts = path.split '.'
   cursor = data
@@ -17,19 +19,22 @@ AS $$
   sql = plv8.prepare "update #{collec} set body = $1 where id = $2",
     ['jsonb', 'text']
   sql.execute [JSON.stringify(data), id]
+  sql.free()
 
   data
 
-$$ LANGUAGE plcoffee IMMUTABLE STRICT;
+$$ LANGUAGE plcoffee;
 
 
 CREATE or REPLACE FUNCTION json_insert(collec TEXT, id TEXT, path TEXT, value JSON)
 RETURNS JSON
 AS $$
 
-  sql = plv8.prepare "select body::json from #{collec} where id = $1", ['text']
+  sql = plv8.prepare "select body::json from #{collec} where id = $1 for update
+    ", ['text']
   rows = sql.execute [id]
   data = rows[0].body
+  sql.free()
 
   parts = path.split '.'
   cursor = data
@@ -41,19 +46,22 @@ AS $$
   sql = plv8.prepare "update #{collec} set body = $1 where id = $2",
     ['jsonb', 'text']
   sql.execute [JSON.stringify(data), id]
+  sql.free()
 
   data
 
-$$ LANGUAGE plcoffee IMMUTABLE STRICT;
+$$ LANGUAGE plcoffee;
 
 
 CREATE or REPLACE FUNCTION json_push(collec TEXT, id TEXT, path TEXT, value JSON)
 RETURNS JSON
 AS $$
 
-  sql = plv8.prepare "select body::json from #{collec} where id = $1", ['text']
+  sql = plv8.prepare "select body::json from #{collec} where id = $1 for update
+    ", ['text']
   rows = sql.execute [id]
   data = rows[0].body
+  sql.free()
 
   parts = path.split '.'
   cursor = data
@@ -64,19 +72,22 @@ AS $$
   sql = plv8.prepare "update #{collec} set body = $1 where id = $2",
     ['jsonb', 'text']
   sql.execute [JSON.stringify(data), id]
+  sql.free()
 
   data
 
-$$ LANGUAGE plcoffee IMMUTABLE STRICT;
+$$ LANGUAGE plcoffee;
 
 
 CREATE or REPLACE FUNCTION json_remove(collec TEXT, id TEXT, path TEXT)
 RETURNS JSON
 AS $$
 
-  sql = plv8.prepare "select body::json from #{collec} where id = $1", ['text']
+  sql = plv8.prepare "select body::json from #{collec} where id = $1 for update
+    ", ['text']
   rows = sql.execute [id]
   data = rows[0].body
+  sql.free()
 
   parts = path.split '.'
   cursor = data
@@ -92,7 +103,8 @@ AS $$
   sql = plv8.prepare "update #{collec} set body = $1 where id = $2",
     ['jsonb', 'text']
   sql.execute [JSON.stringify(data), id]
+  sql.free()
 
   data
 
-$$ LANGUAGE plcoffee IMMUTABLE STRICT;
+$$ LANGUAGE plcoffee;
