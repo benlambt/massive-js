@@ -57,25 +57,25 @@ Massive.prototype.loadTables = function(next){
   });
 }
 
-Massive.prototype.insertDoc = function(collection, doc, next) {
-  this.saveDoc('insert', collection, doc, next);
+Massive.prototype.insert = function(collection, doc, next) {
+  this.save('insert', collection, doc, next);
 }
 
-Massive.prototype.updateDoc = function(collection, doc, next) {
-  this.saveDoc('update', collection, doc, next);
+Massive.prototype.update = function(collection, doc, next) {
+  this.save('update', collection, doc, next);
 }
 
-Massive.prototype.saveDoc = function(operation, collection, doc, next){
+Massive.prototype.save = function(operation, collection, doc, next){
   var self = this;
 
   collection = this.readCollection(collection);
 
   if(collection.table) {
-    collection.table.saveDoc(operation, doc, next);
+    collection.table.save(operation, doc, next);
   } else {
     this.createDocTable(collection, function() {
       // recurse
-      self.saveDoc(operation, collection.path, doc, next);
+      self.save(operation, collection.path, doc, next);
     });
   }
 };
