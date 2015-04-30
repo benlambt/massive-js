@@ -1,9 +1,8 @@
-var repl = require("repl");
+var repl = require("nesh");
 var commander = require("commander");
 var massive = require("../index");
 var program = require('commander');
 var assert = require("assert");
-
 
 program
   .version('0.0.1')
@@ -22,13 +21,18 @@ if(program.database){
   console.log(" -c or --connection to enter the full connection string: postgres://user:password@server/tablename");
 }
 
+if (program.args[1])
+  repl.loadLanguage(program.args[1]);
+
 if(connectionString){
   massive.connect({connectionString : connectionString}, function(err,db){
-    var context = repl.start({
-      prompt: "db > ",
-    }).context;
-    context.db = db;
-    console.log("Massive loaded and listening");
+    repl.start({
+      welcome: "Massive loaded and listening",
+      prompt: "db > "
+    }, function(ex, repl) {
+      repl.context.db = db;
+    });
+
   });
 
 }
