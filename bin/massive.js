@@ -1,5 +1,6 @@
+#!/usr/bin/env node
+
 var repl = require("nesh");
-var commander = require("commander");
 var massive = require("../index");
 var program = require('commander');
 var assert = require("assert");

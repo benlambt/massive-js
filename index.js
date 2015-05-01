@@ -23,7 +23,57 @@ var Massive = function(args){
   this.queryFiles = [];
   this.schemas = [];
   this.functions = [];
+
+  if(args.whitelist) {
+    this.whitelist = this.getTableFilter(args.whitelist);
+  } else {
+    this.allowedSchemas = this.getSchemaFilter(args.schema);
+    this.blacklist = this.getTableFilter(args.blacklist);
+    this.exceptions = this.getTableFilter(args.exceptions);
+  }
 }
+
+Massive.prototype.getSchemaFilter = function(allowedSchemas) {
+  // an empty string will cause all schema to be loaded by default:
+  var result = '';
+  if(allowedSchemas === 'all' || allowedSchemas === '*') {
+    // Do nothing else. Leave the default empty string:
+    allowedSchemas = null;
+  }
+  if(allowedSchemas) {
+    // there is a value of some sort other than our acceptable defaults:
+    if(_.isString(allowedSchemas)) {
+      // a string works. If comma-delimited, so much the better, we're done:
+      result = allowedSchemas;
+    } else {
+      if(!_.isArray(allowedSchemas)) {
+        throw("Specify allowed schemas using either a commma-delimited string or an array of strings");
+      }
+      // create a comma-delimited string:
+      result = allowedSchemas.join(", ");
+    }
+  }
+  return result;
+};
+
+Massive.prototype.getTableFilter = function(filter) {
+  // an empty string will cause all schema to be loaded by default:
+  var result = '';
+  if(filter) {
+    // there is a value of some sort other than our acceptable defaults:
+    if(_.isString(filter)) {
+      // a string works. If comma-delimited, so much the better, we're done:
+      result = filter;
+    } else {
+      if(!_.isArray(filter)) {
+        throw("Specify filter patterns using either a commma-delimited string or an array of strings");
+      }
+      // create a comma-delimited string:
+      result = filter.join(", ");
+    }
+  }
+  return result;
+};
 
 Massive.prototype.run = function(){
   var args = ArgTypes.queryArgs(arguments);
@@ -37,8 +87,15 @@ Massive.prototype.loadQueries = function() {
 
 Massive.prototype.loadTables = function(next){
   var tableSql = __dirname + "/lib/scripts/tables.sql";
+  var parameters = [this.allowedSchemas, this.blacklist, this.exceptions];
   var self = this;
-  this.executeSqlFile({file : tableSql}, function(err,tables){
+
+  // ONLY allow whitelisted items:
+  if(this.whitelist) {
+    tableSql = __dirname + "/lib/scripts/whitelist.sql";
+    var parameters = [this.whitelist]
+  }
+  this.executeSqlFile({file : tableSql, params: parameters}, function(err,tables){
     if(err){
       next(err,null);
     }else{
@@ -136,11 +193,10 @@ var MapTableToNamespace = function(table) {
     if(!db[schemaName]) {
       // if not, then bolt it on:
       db[schemaName] = {};
-      // push it into the tables collection as a namespace object:
-      db.tables.push(db[schemaName]);
     }
     // attach the table to the schema:
     db[schemaName][table.name] = table;
+    db.tables.push(table);
   } else {
     //it's public - just pin table to the root to namespace
     db[table.name] = table;
@@ -176,10 +232,11 @@ var walkSqlFiles = function(rootObject, rootDir){
   _.each(dirs, function(item){
 
     //parsing with path is a friendly way to get info about this dir or file
-    var parsed = path.parse(item);
+    var ext = path.extname(item);
+    var name = path.basename(item, ext);
 
     //is this a SQL file?
-    if(parsed.ext === ".sql"){
+    if(ext === ".sql"){
 
       //why yes it is! Build the abspath so we can read the file
       var filePath = path.join(rootDir,item);
@@ -189,7 +246,7 @@ var walkSqlFiles = function(rootObject, rootDir){
       var sql = fs.readFileSync(filePath, {encoding : "utf-8"});
 
       //set a property on our root object, and grab a handy variable reference:
-      var newProperty = assignScriptAsFunction(rootObject, parsed.name);
+      var newProperty = assignScriptAsFunction(rootObject, name);
 
       //I don't know what I'm doing, but it works
       newProperty.sql = sql;
@@ -197,20 +254,20 @@ var walkSqlFiles = function(rootObject, rootDir){
       newProperty.filePath = filePath;
       self.queryFiles.push(newProperty);
 
-    }else if(parsed.ext !== ''){
+    }else if(ext !== ''){
       //ignore it
     }else{
 
       //this is a directory so shift things and move on down
       //set a property on our root object, then use *that*
       //as the root in the next call
-      rootObject[parsed.name] = {};
+      rootObject[name] = {};
 
       //set the path to walk so we have a correct root directory
       var pathToWalk = path.join(rootDir,item);
 
       //recursive call - do it all again
-      walkSqlFiles(rootObject[parsed.name],pathToWalk);
+      walkSqlFiles(rootObject[name],pathToWalk);
     }
   });
 }
